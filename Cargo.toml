@@ -2,8 +2,11 @@
 name = "bonsai"
 version = "0.1.0"
 authors = ["Matt Garnett <14004106+lightclient@users.noreply.github.com>"]
+license = "Apache-2.0"
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Index arithmetic functions for perfect binary trees."
+repository = "https://github.com/lightclient/bonsai"
+keywords = ["perfect-binary-tree", "general-index"]
+categories = ["no-std"]
 
 [dependencies]
