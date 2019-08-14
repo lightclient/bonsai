@@ -1,50 +1,51 @@
 #![no_std]
 //! Implements various index arithmetic for perfect binary trees.
 
-/// Return a node's family. `index` is zero indexed.
-pub const fn expand_tree_index(index: u64) -> (u64, u64, u64) {
-    let left = index - (index & 1) + (index == 1) as u64;
-    let right = index + (index & 1 ^ 1) + (index == 1) as u64;
-    let parent = left / 2 + (index == 1) as u64;
+/// Returns an index's family.
+pub const fn expand(index: u64) -> (u64, u64, u64) {
+    let left = index & (-2i64 as u64);
+    let right = left + 1;
+    let parent = left / 2;
 
     (left, right, parent)
 }
 
-/// Return the index of a node's sibling. `index` is zero indexed.
-pub const fn sibling_index(index: u64) -> u64 {
-    index - (index & 1) + (index & 1 ^ 1) + (index == 1) as u64
+/// Returns the index's sibling.
+pub const fn sibling(index: u64) -> u64 {
+    (index & (-2i64 as u64)) + ((index & 1u64) ^ 1)
 }
 
-/// Return the first leaf of a tree described by `root` and `depth`.
-pub const fn left_most_leaf(root: u64, depth: u64) -> u64 {
+/// Returns the first leaf of a tree rooted at `root` with a `depth`.
+pub const fn first_leaf(root: u64, depth: u64) -> u64 {
     root * (1 << depth)
 }
 
-/// Return the last leaf of a tree described by `root` and `depth`.
-pub const fn right_most_leaf(root: u64, depth: u64) -> u64 {
+/// Returns the last leaf of a tree rooted at `root` with a `depth`.
+pub const fn last_leaf(root: u64, depth: u64) -> u64 {
     let pow = 1 << depth;
     root * pow + pow - 1
 }
 
-/// Determine if `index` is in the subtree rooted at `root`.
+/// Returns if `index` is in the subtree rooted at `root`.
 pub const fn is_in_subtree(root: u64, index: u64) -> bool {
     let diff = relative_depth(root, index);
-    let left_most = left_most_leaf(root, diff);
-    let right_most = right_most_leaf(root, diff);
+    let left_most = first_leaf(root, diff);
+    let right_most = last_leaf(root, diff);
 
     (left_most <= index) & (index <= right_most)
 }
 
-/// Return the depth between two general indicies.
+/// Returns the depth between two general indicies.
 pub const fn relative_depth(a: u64, b: u64) -> u64 {
-    let a = log_base_two(last_power_of_two(a));
-    let b = log_base_two(last_power_of_two(b));
+    let a = log2(last_power_of_two(a));
+    let b = log2(last_power_of_two(b));
 
     b - a
 }
 
-/// Return the next power of two for `n` using bit twiddling.
-/// https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+/// Returns the next power of two for `n` using bit twiddling.
+///
+/// Source: https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
 pub const fn next_power_of_two(n: u64) -> u64 {
     let mut ret: u128 = (n - 1) as u128;
 
@@ -58,7 +59,7 @@ pub const fn next_power_of_two(n: u64) -> u64 {
     (ret + 1) as u64
 }
 
-/// Return the last power of two for `n` using bit twiddling.
+/// Returns the last power of two for `n` using bit twiddling.
 pub const fn last_power_of_two(n: u64) -> u64 {
     let mut ret: u128 = n as u128;
 
@@ -72,14 +73,15 @@ pub const fn last_power_of_two(n: u64) -> u64 {
     ((ret + 1) >> 1) as u64
 }
 
-/// Return the subtree root for `index` assuming the tree is `depth` deep.
+/// Returns the subtree root for `index` assuming the tree is `depth` deep.
 pub const fn root_from_depth(index: u64, depth: u64) -> u64 {
     index / (1 << depth)
 }
 
-/// Return the log of `n` using the De Bruijn method.
+/// Returns the log of `n` using the De Bruijn method.
+///
 /// https://graphics.stanford.edu/~seander/bithacks.html#IntegerLogDeBruijn
-pub const fn log_base_two(n: u64) -> u64 {
+pub const fn log2(n: u64) -> u64 {
     const DE_BRUIJN_BIT_POSITION: &'static [u64] = &[
         63, 0, 58, 1, 59, 47, 53, 2, 60, 39, 48, 27, 54, 33, 42, 3, 61, 51, 37, 40, 49, 18, 28, 20,
         55, 30, 34, 11, 43, 14, 22, 4, 62, 57, 46, 52, 38, 26, 32, 41, 50, 36, 17, 19, 29, 10, 13,
@@ -96,7 +98,7 @@ pub const fn subtree_index_to_general(root: u64, index: u64) -> u64 {
 
 /// Translate the general index `index` into a subtree index rooted at `root`.
 pub const fn general_index_to_subtree(root: u64, index: u64) -> u64 {
-    let depth_diff = log_base_two(last_power_of_two(index)) - log_base_two(last_power_of_two(root));
+    let depth_diff = log2(last_power_of_two(index)) - log2(last_power_of_two(root));
 
     (1 << depth_diff) + index - ((1 << depth_diff) * root)
 }
@@ -153,20 +155,20 @@ mod tests {
 
     #[test]
     fn compute_expanded_tree_indexes() {
-        assert_eq!(expand_tree_index(2), (2, 3, 1));
-        assert_eq!(expand_tree_index(3), (2, 3, 1));
-        assert_eq!(expand_tree_index(14), (14, 15, 7));
-        assert_eq!(expand_tree_index(15), (14, 15, 7));
+        assert_eq!(expand(2), (2, 3, 1));
+        assert_eq!(expand(3), (2, 3, 1));
+        assert_eq!(expand(14), (14, 15, 7));
+        assert_eq!(expand(15), (14, 15, 7));
     }
 
     #[test]
     fn compute_sibling_index() {
-        assert_eq!(sibling_index(2), 3);
-        assert_eq!(sibling_index(3), 2);
-        assert_eq!(sibling_index(6), 7);
-        assert_eq!(sibling_index(7), 6);
-        assert_eq!(sibling_index(100), 101);
-        assert_eq!(sibling_index(101), 100);
+        assert_eq!(sibling(2), 3);
+        assert_eq!(sibling(3), 2);
+        assert_eq!(sibling(6), 7);
+        assert_eq!(sibling(7), 6);
+        assert_eq!(sibling(100), 101);
+        assert_eq!(sibling(101), 100);
     }
 
     #[test]
@@ -237,46 +239,46 @@ mod tests {
     }
 
     #[test]
-    fn compute_log_base_two() {
-        assert_eq!(log_base_two(2_u64.pow(1)), 1);
-        assert_eq!(log_base_two(2_u64.pow(10)), 10);
-        assert_eq!(log_base_two(2_u64.pow(33)), 33);
-        assert_eq!(log_base_two(2_u64.pow(45)), 45);
-        assert_eq!(log_base_two(2_u64.pow(63)), 63);
+    fn compute_log2() {
+        assert_eq!(log2(2_u64.pow(1)), 1);
+        assert_eq!(log2(2_u64.pow(10)), 10);
+        assert_eq!(log2(2_u64.pow(33)), 33);
+        assert_eq!(log2(2_u64.pow(45)), 45);
+        assert_eq!(log2(2_u64.pow(63)), 63);
     }
 
     #[test]
-    fn compute_left_most_leaf() {
-        assert_eq!(left_most_leaf(1, 1), 2);
-        assert_eq!(left_most_leaf(1, 9), 2_u64.pow(9));
-        assert_eq!(left_most_leaf(1, 50), 2_u64.pow(50));
+    fn compute_first_leaf() {
+        assert_eq!(first_leaf(1, 1), 2);
+        assert_eq!(first_leaf(1, 9), 2_u64.pow(9));
+        assert_eq!(first_leaf(1, 50), 2_u64.pow(50));
 
-        assert_eq!(left_most_leaf(2, 1), 2 * 2_u64.pow(1));
-        assert_eq!(left_most_leaf(2, 4), 2 * 2_u64.pow(4));
-        assert_eq!(left_most_leaf(2, 5), 2 * 2_u64.pow(5));
+        assert_eq!(first_leaf(2, 1), 2 * 2_u64.pow(1));
+        assert_eq!(first_leaf(2, 4), 2 * 2_u64.pow(4));
+        assert_eq!(first_leaf(2, 5), 2 * 2_u64.pow(5));
 
-        assert_eq!(left_most_leaf(6, 1), 6 * 2_u64.pow(1));
-        assert_eq!(left_most_leaf(6, 2), 6 * 2_u64.pow(2));
-        assert_eq!(left_most_leaf(6, 11), 6 * 2_u64.pow(11));
+        assert_eq!(first_leaf(6, 1), 6 * 2_u64.pow(1));
+        assert_eq!(first_leaf(6, 2), 6 * 2_u64.pow(2));
+        assert_eq!(first_leaf(6, 11), 6 * 2_u64.pow(11));
 
-        assert_eq!(left_most_leaf(25, 1), 25 * 2_u64.pow(1));
+        assert_eq!(first_leaf(25, 1), 25 * 2_u64.pow(1));
     }
 
     #[test]
-    fn compute_right_most_leaf() {
-        assert_eq!(right_most_leaf(1, 1), 3);
-        assert_eq!(right_most_leaf(1, 9), 2_u64.pow(10) - 1);
-        assert_eq!(right_most_leaf(1, 50), 2_u64.pow(51) - 1);
+    fn compute_last_leaf() {
+        assert_eq!(last_leaf(1, 1), 3);
+        assert_eq!(last_leaf(1, 9), 2_u64.pow(10) - 1);
+        assert_eq!(last_leaf(1, 50), 2_u64.pow(51) - 1);
 
-        assert_eq!(right_most_leaf(2, 1), 2 * 2_u64.pow(1) + 1);
-        assert_eq!(right_most_leaf(2, 4), 2 * 2_u64.pow(4) + 15);
-        assert_eq!(right_most_leaf(2, 5), 2 * 2_u64.pow(5) + 31);
+        assert_eq!(last_leaf(2, 1), 2 * 2_u64.pow(1) + 1);
+        assert_eq!(last_leaf(2, 4), 2 * 2_u64.pow(4) + 15);
+        assert_eq!(last_leaf(2, 5), 2 * 2_u64.pow(5) + 31);
 
-        assert_eq!(right_most_leaf(6, 1), 6 * 2_u64.pow(1) + 1);
-        assert_eq!(right_most_leaf(6, 2), 6 * 2_u64.pow(2) + 3);
-        assert_eq!(right_most_leaf(6, 11), 6 * 2_u64.pow(11) + 2047);
+        assert_eq!(last_leaf(6, 1), 6 * 2_u64.pow(1) + 1);
+        assert_eq!(last_leaf(6, 2), 6 * 2_u64.pow(2) + 3);
+        assert_eq!(last_leaf(6, 11), 6 * 2_u64.pow(11) + 2047);
 
-        assert_eq!(right_most_leaf(25, 1), 25 * 2_u64.pow(1) + 1);
+        assert_eq!(last_leaf(25, 1), 25 * 2_u64.pow(1) + 1);
     }
 
     #[test]
