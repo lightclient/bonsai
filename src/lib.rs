@@ -1,9 +1,18 @@
+//! Implements various index arithmetic functions for perfect binary trees.
 #![no_std]
-//! Implements various index arithmetic for perfect binary trees.
+
+#[cfg(feature = "u64")]
+type T = u64;
+
+#[cfg(feature = "u128")]
+type T = u128;
+
+const BITS: T = (core::mem::size_of::<T>() * 8) as T;
+const NEGATIVE_TWO: T = -2i8 as T;
 
 /// Returns an index's family.
-pub const fn expand(index: u64) -> (u64, u64, u64) {
-    let left = index & (-2i64 as u64);
+pub const fn expand(index: T) -> (T, T, T) {
+    let left = index & NEGATIVE_TWO;
     let right = left + 1;
     let parent = left / 2;
 
@@ -11,23 +20,23 @@ pub const fn expand(index: u64) -> (u64, u64, u64) {
 }
 
 /// Returns the index's sibling.
-pub const fn sibling(index: u64) -> u64 {
-    (index & (-2i64 as u64)) + ((index & 1u64) ^ 1)
+pub const fn sibling(index: T) -> T {
+    (index & NEGATIVE_TWO) + ((index & 1) ^ 1)
 }
 
 /// Returns the first leaf of a tree rooted at `root` with a `depth`.
-pub const fn first_leaf(root: u64, depth: u64) -> u64 {
+pub const fn first_leaf(root: T, depth: T) -> T {
     root * (1 << depth)
 }
 
 /// Returns the last leaf of a tree rooted at `root` with a `depth`.
-pub const fn last_leaf(root: u64, depth: u64) -> u64 {
+pub const fn last_leaf(root: T, depth: T) -> T {
     let pow = 1 << depth;
     root * pow + pow - 1
 }
 
 /// Returns if `index` is in the subtree rooted at `root`.
-pub const fn is_in_subtree(root: u64, index: u64) -> bool {
+pub const fn is_in_subtree(root: T, index: T) -> bool {
     let diff = relative_depth(root, index);
     let left_most = first_leaf(root, diff);
     let right_most = last_leaf(root, diff);
@@ -36,18 +45,18 @@ pub const fn is_in_subtree(root: u64, index: u64) -> bool {
 }
 
 /// Returns the depth between two general indicies.
-pub const fn relative_depth(a: u64, b: u64) -> u64 {
+pub const fn relative_depth(a: T, b: T) -> T {
     let a = log2(last_power_of_two(a));
     let b = log2(last_power_of_two(b));
 
-    b - a
+    (b - a) as T
 }
 
 /// Returns the next power of two for `n` using bit twiddling.
 ///
 /// Source: https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
-pub const fn next_power_of_two(n: u64) -> u64 {
-    let mut ret: u128 = (n - 1) as u128;
+pub const fn next_power_of_two(n: T) -> T {
+    let mut ret = n - 1;
 
     ret = ret | ret >> 1;
     ret = ret | ret >> 2;
@@ -56,12 +65,17 @@ pub const fn next_power_of_two(n: u64) -> u64 {
     ret = ret | ret >> 16;
     ret = ret | ret >> 32;
 
-    (ret + 1) as u64
+    #[cfg(feature = "u128")]
+    {
+        ret = ret | ret >> 64;
+    }
+
+    ret + 1
 }
 
 /// Returns the last power of two for `n` using bit twiddling.
-pub const fn last_power_of_two(n: u64) -> u64 {
-    let mut ret: u128 = n as u128;
+pub const fn last_power_of_two(n: T) -> T {
+    let mut ret = n;
 
     ret = ret | ret >> 1;
     ret = ret | ret >> 2;
@@ -70,7 +84,21 @@ pub const fn last_power_of_two(n: u64) -> u64 {
     ret = ret | ret >> 16;
     ret = ret | ret >> 32;
 
-    ((ret + 1) >> 1) as u64
+    #[cfg(feature = "u128")]
+    {
+        ret = ret | ret >> 64;
+    }
+
+    let (ret, overflow) = ret.overflowing_add(1);
+
+    // This will either be the last power of two or zero if it overflowed.
+    let shifted = ret.overflowing_shr(1).0;
+
+    // Overflows only occur at `2^BITS < n < 2^BITS-1`, so the last power of
+    // two would be `2^(BITS-1)`.
+    let max_pow_two = 1 << (BITS - 1);
+
+    shifted + (max_pow_two & ((overflow as T) << (BITS - 1)))
 }
 
 /// Returns the subtree root for `index` assuming the tree is `depth` deep.
@@ -78,26 +106,18 @@ pub const fn root_from_depth(index: u64, depth: u64) -> u64 {
     index / (1 << depth)
 }
 
-/// Returns the log of `n` using the De Bruijn method.
-///
-/// https://graphics.stanford.edu/~seander/bithacks.html#IntegerLogDeBruijn
-pub const fn log2(n: u64) -> u64 {
-    const DE_BRUIJN_BIT_POSITION: &'static [u64] = &[
-        63, 0, 58, 1, 59, 47, 53, 2, 60, 39, 48, 27, 54, 33, 42, 3, 61, 51, 37, 40, 49, 18, 28, 20,
-        55, 30, 34, 11, 43, 14, 22, 4, 62, 57, 46, 52, 38, 26, 32, 41, 50, 36, 17, 19, 29, 10, 13,
-        21, 56, 45, 25, 31, 35, 16, 9, 12, 44, 24, 15, 8, 23, 7, 6, 5,
-    ];
-
-    DE_BRUIJN_BIT_POSITION[(n.wrapping_mul(0x07EDD5E59A4E28C2) >> 58) as usize]
+/// Returns the log base 2 of `n`.
+pub const fn log2(n: T) -> T {
+    (BITS - 1) as T - n.leading_zeros() as T
 }
 
 /// Translate the subtree index `index` rooted at `root` into a general index.
-pub const fn subtree_index_to_general(root: u64, index: u64) -> u64 {
+pub const fn subtree_index_to_general(root: T, index: T) -> T {
     (root * index) - (root - 1) * (index - last_power_of_two(index))
 }
 
 /// Translate the general index `index` into a subtree index rooted at `root`.
-pub const fn general_index_to_subtree(root: u64, index: u64) -> u64 {
+pub const fn general_index_to_subtree(root: T, index: T) -> T {
     let depth_diff = log2(last_power_of_two(index)) - log2(last_power_of_two(root));
 
     (1 << depth_diff) + index - ((1 << depth_diff) * root)
@@ -106,6 +126,8 @@ pub const fn general_index_to_subtree(root: u64, index: u64) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const TWO: T = 2;
 
     #[test]
     fn compute_depth_difference() {
@@ -120,7 +142,7 @@ mod tests {
         assert_eq!(relative_depth(11, 30), 1);
         assert_eq!(relative_depth(28, 30), 0);
 
-        assert_eq!(relative_depth(1, 2_u64.pow(63)), 63);
+        assert_eq!(relative_depth(1, TWO.pow(63)), 63);
     }
 
     #[test]
@@ -177,13 +199,19 @@ mod tests {
         assert_eq!(last_power_of_two(2), 2);
         assert_eq!(last_power_of_two(9), 8);
         assert_eq!(last_power_of_two(1023), 512);
-        assert_eq!(last_power_of_two(2_u64.pow(63) + 1000), 2_u64.pow(63));
+        assert_eq!(last_power_of_two(TWO.pow(63) + 1000), TWO.pow(63));
+
+        #[cfg(feature = "u128")]
+        assert_eq!(last_power_of_two(TWO.pow(127) + 1000), TWO.pow(127));
 
         assert_eq!(next_power_of_two(1), 1);
         assert_eq!(next_power_of_two(2), 2);
         assert_eq!(next_power_of_two(9), 16);
         assert_eq!(next_power_of_two(1023), 1024);
-        assert_eq!(next_power_of_two(2_u64.pow(62) + 1000), 2_u64.pow(63));
+        assert_eq!(next_power_of_two(TWO.pow(62) + 1000), TWO.pow(63));
+
+        #[cfg(feature = "u128")]
+        assert_eq!(next_power_of_two(TWO.pow(126) + 1000), TWO.pow(127));
     }
 
     #[test]
@@ -240,45 +268,45 @@ mod tests {
 
     #[test]
     fn compute_log2() {
-        assert_eq!(log2(2_u64.pow(1)), 1);
-        assert_eq!(log2(2_u64.pow(10)), 10);
-        assert_eq!(log2(2_u64.pow(33)), 33);
-        assert_eq!(log2(2_u64.pow(45)), 45);
-        assert_eq!(log2(2_u64.pow(63)), 63);
+        assert_eq!(log2(TWO.pow(1)), 1);
+        assert_eq!(log2(TWO.pow(10)), 10);
+        assert_eq!(log2(TWO.pow(33)), 33);
+        assert_eq!(log2(TWO.pow(45)), 45);
+        assert_eq!(log2(TWO.pow(63)), 63);
     }
 
     #[test]
     fn compute_first_leaf() {
-        assert_eq!(first_leaf(1, 1), 2);
-        assert_eq!(first_leaf(1, 9), 2_u64.pow(9));
-        assert_eq!(first_leaf(1, 50), 2_u64.pow(50));
+        assert_eq!(first_leaf(1, 1), TWO.pow(1));
+        assert_eq!(first_leaf(1, 9), TWO.pow(9));
+        assert_eq!(first_leaf(1, 50), TWO.pow(50));
 
-        assert_eq!(first_leaf(2, 1), 2 * 2_u64.pow(1));
-        assert_eq!(first_leaf(2, 4), 2 * 2_u64.pow(4));
-        assert_eq!(first_leaf(2, 5), 2 * 2_u64.pow(5));
+        assert_eq!(first_leaf(2, 1), 2 * TWO.pow(1));
+        assert_eq!(first_leaf(2, 4), 2 * TWO.pow(4));
+        assert_eq!(first_leaf(2, 5), 2 * TWO.pow(5));
 
-        assert_eq!(first_leaf(6, 1), 6 * 2_u64.pow(1));
-        assert_eq!(first_leaf(6, 2), 6 * 2_u64.pow(2));
-        assert_eq!(first_leaf(6, 11), 6 * 2_u64.pow(11));
+        assert_eq!(first_leaf(6, 1), 6 * TWO.pow(1));
+        assert_eq!(first_leaf(6, 2), 6 * TWO.pow(2));
+        assert_eq!(first_leaf(6, 11), 6 * TWO.pow(11));
 
-        assert_eq!(first_leaf(25, 1), 25 * 2_u64.pow(1));
+        assert_eq!(first_leaf(25, 1), 25 * TWO.pow(1));
     }
 
     #[test]
     fn compute_last_leaf() {
         assert_eq!(last_leaf(1, 1), 3);
-        assert_eq!(last_leaf(1, 9), 2_u64.pow(10) - 1);
-        assert_eq!(last_leaf(1, 50), 2_u64.pow(51) - 1);
+        assert_eq!(last_leaf(1, 9), TWO.pow(10) - 1);
+        assert_eq!(last_leaf(1, 50), TWO.pow(51) - 1);
 
-        assert_eq!(last_leaf(2, 1), 2 * 2_u64.pow(1) + 1);
-        assert_eq!(last_leaf(2, 4), 2 * 2_u64.pow(4) + 15);
-        assert_eq!(last_leaf(2, 5), 2 * 2_u64.pow(5) + 31);
+        assert_eq!(last_leaf(2, 1), 2 * TWO.pow(1) + 1);
+        assert_eq!(last_leaf(2, 4), 2 * TWO.pow(4) + 15);
+        assert_eq!(last_leaf(2, 5), 2 * TWO.pow(5) + 31);
 
-        assert_eq!(last_leaf(6, 1), 6 * 2_u64.pow(1) + 1);
-        assert_eq!(last_leaf(6, 2), 6 * 2_u64.pow(2) + 3);
-        assert_eq!(last_leaf(6, 11), 6 * 2_u64.pow(11) + 2047);
+        assert_eq!(last_leaf(6, 1), 6 * TWO.pow(1) + 1);
+        assert_eq!(last_leaf(6, 2), 6 * TWO.pow(2) + 3);
+        assert_eq!(last_leaf(6, 11), 6 * TWO.pow(11) + 2047);
 
-        assert_eq!(last_leaf(25, 1), 25 * 2_u64.pow(1) + 1);
+        assert_eq!(last_leaf(25, 1), 25 * TWO.pow(1) + 1);
     }
 
     #[test]
