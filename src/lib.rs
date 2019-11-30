@@ -52,47 +52,13 @@ pub const fn relative_depth(a: T, b: T) -> T {
     (b - a) as T
 }
 
-/// Returns the next power of two for `n` using bit twiddling.
-///
-/// Source: https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
-pub const fn next_power_of_two(n: T) -> T {
-    let mut ret = n - 1;
-
-    ret = ret | ret >> 1;
-    ret = ret | ret >> 2;
-    ret = ret | ret >> 4;
-    ret = ret | ret >> 8;
-    ret = ret | ret >> 16;
-    ret = ret | ret >> 32;
-
-    #[cfg(feature = "u128")]
-    {
-        ret = ret | ret >> 64;
-    }
-
-    ret + 1
-}
-
 /// Returns the last power of two for `n` using bit twiddling.
 pub const fn last_power_of_two(n: T) -> T {
-    let mut ret = n;
-
-    ret = ret | ret >> 1;
-    ret = ret | ret >> 2;
-    ret = ret | ret >> 4;
-    ret = ret | ret >> 8;
-    ret = ret | ret >> 16;
-    ret = ret | ret >> 32;
-
-    #[cfg(feature = "u128")]
-    {
-        ret = ret | ret >> 64;
-    }
-
-    let (ret, overflow) = ret.overflowing_add(1);
+    let ret = n.checked_next_power_of_two();
+    let overflow = ret.is_none();
 
     // This will either be the last power of two or zero if it overflowed.
-    let shifted = ret.overflowing_shr(1).0;
+    let shifted = ret.unwrap_or(0).overflowing_shr(1).0;
 
     // Overflows only occur at `2^BITS < n < 2^BITS-1`, so the last power of
     // two would be `2^(BITS-1)`.
@@ -194,7 +160,7 @@ mod tests {
     }
 
     #[test]
-    fn next_and_last_power_of_two() {
+    fn last_power_of_two() {
         assert_eq!(last_power_of_two(1), 1);
         assert_eq!(last_power_of_two(2), 2);
         assert_eq!(last_power_of_two(9), 8);
@@ -203,15 +169,6 @@ mod tests {
 
         #[cfg(feature = "u128")]
         assert_eq!(last_power_of_two(TWO.pow(127) + 1000), TWO.pow(127));
-
-        assert_eq!(next_power_of_two(1), 1);
-        assert_eq!(next_power_of_two(2), 2);
-        assert_eq!(next_power_of_two(9), 16);
-        assert_eq!(next_power_of_two(1023), 1024);
-        assert_eq!(next_power_of_two(TWO.pow(62) + 1000), TWO.pow(63));
-
-        #[cfg(feature = "u128")]
-        assert_eq!(next_power_of_two(TWO.pow(126) + 1000), TWO.pow(127));
     }
 
     #[test]
