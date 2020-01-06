@@ -19,6 +19,12 @@ pub const fn expand(index: T) -> (T, T, T) {
     (left, right, parent)
 }
 
+/// Returns an index's children.
+pub const fn children(index: T) -> (T, T) {
+    let (left, right, _) = expand(index << 1);
+    (left, right)
+}
+
 /// Returns the index's sibling.
 pub const fn sibling(index: T) -> T {
     (index & NEGATIVE_TWO) + ((index & 1) ^ 1)
@@ -181,6 +187,16 @@ mod tests {
         assert_eq!(expand(3), (2, 3, 1));
         assert_eq!(expand(14), (14, 15, 7));
         assert_eq!(expand(15), (14, 15, 7));
+        assert_eq!(expand(3101), (3100, 3101, 1550));
+    }
+
+    #[test]
+    fn compute_child_indexes() {
+        assert_eq!(children(2), (4, 5));
+        assert_eq!(children(3), (6, 7));
+        assert_eq!(children(14), (28, 29));
+        assert_eq!(children(15), (30, 31));
+        assert_eq!(children(3101), (6202, 6203));
     }
 
     #[test]
