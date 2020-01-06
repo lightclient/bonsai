@@ -1,7 +1,7 @@
 [package]
 name = "bonsai"
-version = "0.2.0"
-authors = ["Matt Garnett <14004106+lightclient@users.noreply.github.com>"]
+version = "0.2.1"
+authors = ["Matt Garnett <crates@garnett.dev>"]
 license = "Apache-2.0"
 edition = "2018"
 description = "Index arithmetic functions for perfect binary trees."
